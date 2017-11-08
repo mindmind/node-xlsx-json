@@ -4,21 +4,21 @@ var cvcsv = require('csv');
 
 exports = module.exports = XLSX_json;
 
-function XLSX_json (config, callback) {
+function XLSX_json (config, callback, transform) {
   if(!config.input) {
     console.error("You miss a input file");
     process.exit(1);
   }
 
-  var cv = new CV(config, callback);
+  var cv = new CV(config, callback, transform);
 
 }
 
-function CV(config, callback) {
+function CV(config, callback, transform) {
   var wb = this.load_xlsx(config.input)
   var ws = this.ws(config, wb);
   var csv = this.csv(ws)
-  this.cvjson(csv, config.output, callback)
+  this.cvjson(csv, config, callback, transform)
 }
 
 CV.prototype.load_xlsx = function(input) {
@@ -39,9 +39,16 @@ CV.prototype.csv = function(ws) {
   return csv_file = xlsx.utils.make_csv(ws)
 }
 
-CV.prototype.cvjson = function(csv, output, callback) {
-  var record = []
-  var header = []
+CV.prototype.createFile = function(output,record,callback){
+  var stream = fs.createWriteStream(output, {flags : 'w'});
+  stream.write(JSON.stringify(record));
+  callback(null, record);
+}
+
+CV.prototype.cvjson = function(csv, config, callback, transform) {
+  var record = [];
+  var header = [];
+  var self = this;
 
   cvcsv()
     .from.string(csv)
@@ -62,14 +69,32 @@ CV.prototype.cvjson = function(csv, output, callback) {
       }
     })
     .on('end', function(count){
+
+      if (transform && {}.toString.call(transform) === '[object Function]') {
+        var buffer = transform(record);
+        if (buffer) {
+          record = buffer;
+        } else {
+          console.error('transform function error');
+        }
+      }
       // when writing to a file, use the 'close' event
       // the 'end' event may fire before the file has been written
-      if(output !== null) {
-      	var stream = fs.createWriteStream(output, { flags : 'w' });
-      	stream.write(JSON.stringify(record));
-	callback(null, record);
+      if(config.output !== null) {
+
+        if (config.multiple && config.multiple === true){
+
+          record.forEach(function(item,i){
+              var split = config.output.split('.json')[0];
+              var output = split+'-'+i+'.json';
+              self.createFile(output,item,callback);
+          });
+
+        } else {
+          self.createFile(config.output,item,callback);
+        }
       }else {
-      	callback(null, record);
+        callback(null, record);
       }
 
     })
@@ -77,3 +102,4 @@ CV.prototype.cvjson = function(csv, output, callback) {
       console.error(error.message);
     });
 }
+
