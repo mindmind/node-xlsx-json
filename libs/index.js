@@ -91,7 +91,7 @@ CV.prototype.cvjson = function(csv, config, callback, transform) {
           });
 
         } else {
-          self.createFile(config.output,item,callback);
+          self.createFile(config.output,record,callback);
         }
       }else {
         callback(null, record);
